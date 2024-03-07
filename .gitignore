@@ -1,4 +1,1 @@
-train
-validate
-test
-*.py
+*.png

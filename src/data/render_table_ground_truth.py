@@ -1,3 +1,4 @@
+from functools import partial
 import os
 import subprocess
 import time
@@ -8,7 +9,7 @@ import argparse
 from multiprocessing import Pool, current_process
 
 
-def command(cmd, cwd=None, timeout=3):
+def command(cmd, cwd=None, timeout=5):
     p = subprocess.Popen(cmd, stderr=subprocess.PIPE, cwd=cwd, stdout=subprocess.PIPE, universal_newlines=True)
     t_beginning = time.time()
     while True:
@@ -26,7 +27,12 @@ def command(cmd, cwd=None, timeout=3):
     return out, err
 
 
-def render_ground_truth(item, base_tmp_dir, output_dir, image_width, image_height, dpi):
+def construct_table_latex_code(table):
+    latex_code = "\\documentclass[border=1pt]{standalone}\n\\usepackage{color}\n\\usepackage{graphics}\n\\usepackage{pifont}\n\\usepackage{amssymb,amsmath}\n\\usepackage{multirow,multicol}\n\\usepackage{booktabs}\n\\usepackage{tabularx}\n\\usepackage{subfig}\n\\usepackage{caption}\n\\usepackage{siunitx}\n\\usepackage{array}\n\\usepackage{bm}\n\\usepackage[table]{xcolor}\n\\usepackage{makecell}\n\\begin{document}\n" + str(table) + "\n\\end{document}\n"
+    return latex_code
+
+
+def render_ground_truth(item, base_tmp_dir, output_dir, image_width, image_height, dpi, pad):
     # Create a unique temporary directory for the current process
     process_id = current_process().pid  # Gets the process ID
     tmp_dir = os.path.join(base_tmp_dir, f"tmp_{process_id}")
@@ -39,7 +45,7 @@ def render_ground_truth(item, base_tmp_dir, output_dir, image_width, image_heigh
     
     with open(tex_path, 'w') as wp:
         latex = item['latex'].strip()
-        wp.write('\\documentclass[border=1pt]{standalone}\n\\usepackage{amsmath}\n\\begin{document}\n$' + latex + '$\n\\end{document}')
+        wp.write(construct_table_latex_code(latex))
     
     cmd = ['pdflatex', f'{filename}.tex']
     out, err = command(cmd, cwd=tmp_dir)
@@ -59,6 +65,10 @@ def render_ground_truth(item, base_tmp_dir, output_dir, image_width, image_heigh
             command(['convert', '-density', f'{dpi}', f'{filename}.pdf', '-resize', f'{image_width}x{image_height}', '-background', 'white', 
                     '-gravity', 'NorthWest', '-extent', f'{image_width}x{image_height}', '-alpha', 'remove', f'{filename}.png'], cwd=tmp_dir)
             im = cv2.imread(f'{tmp_dir}/{filename}.png')
+        elif pad:
+            command(['convert', f'{filename}.png', '-background', 'white', '-gravity', 'NorthWest', '-extent', 
+                     f'{image_width}x{image_height}', f'{filename}.png'], cwd=tmp_dir)
+            im = cv2.imread(f'{tmp_dir}/{filename}.png')
     
     cv2.imwrite(f'{output_dir}/{item["image"]}', im)
 
@@ -70,11 +80,11 @@ def render_ground_truth(item, base_tmp_dir, output_dir, image_width, image_heigh
     os.rmdir(tmp_dir)
 
 
-def worker(data_chunk, base_tmp_dir, output_dir, image_width, image_height, dpi):
+def worker(data_chunk, base_tmp_dir, output_dir, image_width, image_height, dpi, pad):
     for item in data_chunk:
         render_ground_truth(
             item, base_tmp_dir=base_tmp_dir, output_dir=output_dir,
-            image_width=image_width, image_height=image_height, dpi=dpi
+            image_width=image_width, image_height=image_height, dpi=dpi, pad=pad
         )
 
 
@@ -85,8 +95,9 @@ def main():
     parser.add_argument('--image_width', type=int, default=1344, help='The width resolution of rendered images')
     parser.add_argument('--image_height', type=int, default=224, help='The height resolution of the rendered images.')
     parser.add_argument('--dpi', type=int, default=240, help='The dpi when converting PDF files to PNG images.')
-    parser.add_argument('--base_tmp_dir', type='str', default='/tmp/', help='The directory to store temp files.')
-    parser.add_argument('--n_workrs', type=int, default=16, help='Number of processors used.')
+    parser.add_argument('--base_tmp_dir', type=str, default='/tmp/', help='The directory to store temp files.')
+    parser.add_argument('--n_workers', type=int, default=16, help='Number of processors used.')
+    parser.add_argument('--pad', action='store_true', help='Whether pad the image to the maximum size (image_width, image_height).')
     
     args = parser.parse_args()
     
@@ -95,9 +106,12 @@ def main():
     
     num_processes = args.n_workers
     data_chunks = np.array_split(data, num_processes)
+
+    worker_partial = partial(worker, base_tmp_dir=args.base_tmp_dir, output_dir=args.output_dir,
+                             image_width=args.image_width, image_height=args.image_height, dpi=args.dpi, pad=args.pad)
     
     with Pool(processes=num_processes) as pool:
-        pool.map(worker, data_chunks, args.base_tmp_dir, args.output_dir, args.image_width, args.image_height, args.dpi)
+        pool.map(worker_partial, data_chunks)
 
 
 if __name__ == "__main__":

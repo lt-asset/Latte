@@ -1,5 +1,5 @@
 # Latte: Improving Latex Recognition for Tables and Formulae with Iterative Refinement
-This is the artifact of the ECCV 2024 submission "Latte: Improving Latex Recognition for Tables and Formulae with Iterative Refinement".
+This is the artifact of the AAAI 2025 submission "Latte: Improving Latex Recognition for Tables and Formulae with Iterative Refinement".
 
 ## Dependency
 * Python 3.10.12

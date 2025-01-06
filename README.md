@@ -1,5 +1,5 @@
-# Latte: Improving Latex Recognition for Tables and Formulae with Iterative Refinement
-This is the artifact of the AAAI 2025 paper "Latte: Improving Latex Recognition for Tables and Formulae with Iterative Refinement".
+# LATTE: Improving Latex Recognition for Tables and Formulae with Iterative Refinement
+This is the artifact of the AAAI 2025 paper "LATTE: Improving Latex Recognition for Tables and Formulae with Iterative Refinement".
 
 ## Dependency
 * Python 3.10.12
